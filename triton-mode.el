@@ -477,14 +477,45 @@ If PROFILE is nil, `triton-current-profile' will be used."
         (add-text-properties (line-beginning-position) (line-end-position) props)
         ))))
 
+(defun triton--sort-pred-by-name (first second)
+  (string-lessp (triton-instance-name first)
+                (triton-instance-name second)))
+(defun triton--sort-pred-by-updated (first second)
+  (string-lessp (triton-instance-updated first)
+                (triton-instance-updated second)))
+(defun triton--sort-pred-by-package (first second)
+  (string-lessp (triton-instance-package first)
+                (triton-instance-package second)))
+(defun triton--sort-pred-by-image (first second)
+  (string-lessp
+   (triton--image-as-string (triton-instance-image first)
+                            triton-local-profile)
+   (triton--image-as-string (triton-instance-image second)
+                            triton-local-profile)))
 
-
+(defun triton-sort-by-name ()
+  (interactive)
+  (setq triton-local-sort-function #'triton--sort-pred-by-name)
+  (triton--fill-buffer triton-local-profile))
+(defun triton-sort-by-updated ()
+  (interactive)
+  (setq triton-local-sort-function #'triton--sort-pred-by-updated)
+  (triton--fill-buffer triton-local-profile))
+(defun triton-sort-by-package ()
+  (interactive)
+  (setq triton-local-sort-function #'triton--sort-pred-by-package)
+  (triton--fill-buffer triton-local-profile))
+(defun triton-sort-by-image ()
+  (interactive)
+  (setq triton-local-sort-function #'triton--sort-pred-by-image)
+  (triton--fill-buffer triton-local-profile))
 
 
 (defun triton--fill-buffer (profile)
   (let ((inhibit-read-only t))
     (erase-buffer)
-    (let ((instances (triton-list-instances profile)))
+    (let ((instances (or triton-local-instances
+                         (triton-list-instances profile))))
       (insert (format "Joyent Triton at %s\n\n" triton-local-profile))
       ;; triton-local-bastion-ssh-port triton-bastion-default-ssh-port
       ;; triton-local-bastion-host-name triton-bastion-name
@@ -522,11 +553,16 @@ If PROFILE is nil, `triton-current-profile' will be used."
       (newline)
       (insert (format "M INSTANCE IMAGE                  PACKAGE              UPDATED\n"))
       (insert (format "- -------- ---------------------- -------------------- ----------------\n"))
+
+      (when triton-local-sort-function
+        (setq instances (sort instances triton-local-sort-function)))
+
       (dolist (i instances)
         (let ((begin (point)))
           (triton--update-line i)
           (newline)
-          ))))
+          ))
+      (setq triton-local-instances instances)))
   (current-buffer))
 
 (defun triton--update-line (&optional instance)
@@ -895,7 +931,8 @@ A prefix argument will cause just redraw the buffer."
       (when (bufferp buffer)
         (with-current-buffer buffer
           (let ((inhibit-read-only t))
-            (setq triton-buffer-modified-at nil)))))
+            (setq triton-buffer-modified-at nil))))
+      (setq triton-local-instances nil))
     (triton--fill-buffer triton-local-profile)))
 
 (define-minor-mode triton-minor-mode "docstring" nil nil
@@ -979,6 +1016,15 @@ A prefix argument will cause just redraw the buffer."
   (setq buffer-read-only t))
 
 
+(defvar triton-sort-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [?n] 'triton-sort-by-name)
+    (define-key map [?i] 'triton-sort-by-image)
+    (define-key map [?u] 'triton-sort-by-updated)
+    (define-key map [?p] 'triton-sort-by-package)
+    map))
+
+
 (define-derived-mode triton-mode fundamental-mode "Triton"
   "docstring"
   (make-local-variable 'triton-local-profile)
@@ -990,6 +1036,8 @@ A prefix argument will cause just redraw the buffer."
   (make-local-variable 'triton-local-ssh-port)
   (make-local-variable 'triton-local-user-name)
   (make-local-variable 'triton-force-bastion)
+  (setq-local triton-local-instances nil)
+  (setq-local triton-local-sort-function #'triton--sort-pred-by-name)
 
   (setq buffer-read-only t)
   (define-key triton-mode-map [?q] 'triton-bury-window)
@@ -1003,6 +1051,7 @@ A prefix argument will cause just redraw the buffer."
   (define-key triton-mode-map [?s] 'triton-run-ssh)
   (define-key triton-mode-map [?P] 'triton-run-pssh)
   (define-key triton-mode-map [?g] 'triton-refresh-all)
+  (define-key triton-mode-map [?s] triton-sort-map)
   )
 
 (provide 'triton-mode)
