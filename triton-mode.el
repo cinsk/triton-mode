@@ -104,8 +104,15 @@
                  image
                (triton--get-cached-image image profile))))
     (if img
-        (format "%s@%s" (triton-image-name img) (triton-image-version img))
+        ;; (format "%s@%s" (triton-image-name img) (triton-image-version img))
+        (format "%s" (triton-image-name img))
       (substring image 0 8))))
+
+(defun triton-instance-updated-as-string (instance)
+  (replace-regexp-in-string
+   "\\`\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}\\)T\\([0-9]\\{2\\}:[0-9]\\{2\\}\\):[0-9]\\{2\\}.*"
+   "\\1 \\2"
+   (triton-instance-updated instance)))
 
 (defun triton-instance-mark-as-string (i)
   (let ((mark (triton-instance-mark i)))
@@ -513,8 +520,8 @@ If PROFILE is nil, `triton-current-profile' will be used."
       (newline)
 
       (newline)
-      (insert (format "M INSTANCE IMAGE                           PACKAGE               UPDATED\n"))
-      (insert (format "- -------- ------------------------------- --------------------- ------------------------\n"))
+      (insert (format "M INSTANCE IMAGE                  PACKAGE              UPDATED\n"))
+      (insert (format "- -------- ---------------------- -------------------- ----------------\n"))
       (dolist (i instances)
         (let ((begin (point)))
           (triton--update-line i)
@@ -530,14 +537,14 @@ If PROFILE is nil, `triton-current-profile' will be used."
     (let ((begin (point)))
       (unless (eobp) (kill-line))
       (let ((mark (triton-instance-mark instance)))
-        (insert (format "%s %s %-31s %-20s %25s "
+        (insert (format "%s %s %-22s %-20s %16s "
                         (propertize (triton-instance-mark-as-string instance)
                                     'face 'triton-mark-face)
                         (triton-short-id (triton-instance-id instance))
                         (triton--image-as-string
                          (triton-instance-image instance) triton-local-profile)
                         (triton-instance-package instance)
-                        (triton-instance-updated instance)))
+                        (triton-instance-updated-as-string instance)))
         (let ((point-offset (- (point) (line-beginning-position))))
           (insert (format "%s" (if mark
                                    (propertize (triton-instance-name instance)
@@ -878,6 +885,18 @@ first mark."
   (interactive)
   (triton triton-local-profile))
 
+(defun triton-refresh-all (&optional arg)
+  "Refresh the list of Triton Compute instances.
+
+A prefix argument will cause just redraw the buffer."
+  (interactive "P")
+  (let ((buffer (get-buffer (format " *triton-%s*" triton-local-profile))))
+    (when (null arg)
+      (when (bufferp buffer)
+        (with-current-buffer buffer
+          (let ((inhibit-read-only t))
+            (setq triton-buffer-modified-at nil)))))
+    (triton--fill-buffer triton-local-profile)))
 
 (define-minor-mode triton-minor-mode "docstring" nil nil
   (let ((kmap (make-sparse-keymap)))
@@ -983,8 +1002,7 @@ first mark."
   (define-key triton-mode-map [?h] 'triton-run-shell)
   (define-key triton-mode-map [?s] 'triton-run-ssh)
   (define-key triton-mode-map [?P] 'triton-run-pssh)
-  ;; TODO: add a feature to refresh buffers and databases
-  ;; (define-key triton-mode-map [?g] 'triton-refresh-all)
+  (define-key triton-mode-map [?g] 'triton-refresh-all)
   )
 
 (provide 'triton-mode)
