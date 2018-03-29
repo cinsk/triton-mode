@@ -659,6 +659,7 @@ If PROFILE is nil, `triton-current-profile' will be used."
   (let ((bufname (format "*triton-%s*" profile)))
     (if (get-buffer bufname)
         (pop-to-buffer (get-buffer bufname))
+      (message "loading...")
       (triton--load-images profile)
       (let ((buffer (get-buffer-create bufname)))
         (with-current-buffer buffer
