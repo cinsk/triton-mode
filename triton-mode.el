@@ -75,9 +75,10 @@
         (insert "\n")))))
 
 (defun triton--get-profile (profile)
-  (let ((prof (or profile triton-current-profile)))
-    (unless prof
-      (error "profile not found"))
+  (let ((prof (or profile
+                  (and (boundp 'triton-local-profile)
+                       triton-local-profile))))
+    (assert prof nil "Profile must be set")
     prof))
 
 (defun triton--get-image-database (profile)
@@ -125,8 +126,7 @@
 
 Current buffer will be erased before the execution.
 The error output will be stored in *triton-error* buffer, if any.
-
-If PROFILE is nil, `triton-current-profile' will be used."
+"
   (let ((cmd (concat (if profile
                          (format "eval \"$(triton env %s)\";" profile)
                        "")
@@ -495,18 +495,22 @@ If PROFILE is nil, `triton-current-profile' will be used."
 
 (defun triton-sort-by-name ()
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (setq triton-local-sort-function #'triton--sort-pred-by-name)
   (triton--fill-buffer triton-local-profile))
 (defun triton-sort-by-updated ()
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (setq triton-local-sort-function #'triton--sort-pred-by-updated)
   (triton--fill-buffer triton-local-profile))
 (defun triton-sort-by-package ()
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (setq triton-local-sort-function #'triton--sort-pred-by-package)
   (triton--fill-buffer triton-local-profile))
 (defun triton-sort-by-image ()
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (setq triton-local-sort-function #'triton--sort-pred-by-image)
   (triton--fill-buffer triton-local-profile))
 
@@ -679,6 +683,7 @@ If PROFILE is nil, `triton-current-profile' will be used."
 
 (defun triton-previous-line (&optional arg)
   (interactive "p")
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (dotimes (dummy arg)
     (let ((notfound t)
           (pos (previous-single-property-change (line-beginning-position) 'key)))
@@ -697,6 +702,7 @@ If PROFILE is nil, `triton-current-profile' will be used."
 
 (defun triton-next-line (&optional arg)
   (interactive "p")
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (dotimes (dummy arg)
     (let ((notfound t)
           (pos (next-single-property-change (line-end-position) 'key)))
@@ -716,6 +722,7 @@ If PROFILE is nil, `triton-current-profile' will be used."
 
 (defun triton-mark-line (&optional arg)
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (let ((instance (get-text-property (point) 'instance)))
     (unless instance
       (triton-next-line 1)
@@ -730,6 +737,7 @@ If PROFILE is nil, `triton-current-profile' will be used."
 
 (defun triton-unmark-line (&optional arg)
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (let ((instance (get-text-property (point) 'instance)))
     (unless instance
       (triton-next-line 1)
@@ -744,6 +752,7 @@ If PROFILE is nil, `triton-current-profile' will be used."
 
 (defun triton-toggle-all-marks (&optional arg)
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (triton--do-instances (i)
     (let ((mark (triton-instance-mark i)))
       (if mark
@@ -753,6 +762,7 @@ If PROFILE is nil, `triton-current-profile' will be used."
 
 (defun triton-unmark-all-marks (&optional arg)
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (triton--do-instances (i)
     (let ((mark (triton-instance-mark i)))
       (setf (triton-instance-mark i) nil)))
@@ -761,6 +771,7 @@ If PROFILE is nil, `triton-current-profile' will be used."
 (defun triton-bury-window (&optional arg)
   (interactive)
   ;; TODO: if this is the only window of the frame, switch to other buffer
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (quit-window))
 
 (defun triton--current-instance ()
@@ -782,6 +793,7 @@ first mark."
 
 (defun triton-run-shell (&optional arg)
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (let ((host (triton--current-instance)))
     (when host
       (let* ((user (triton--host-user-name host triton-local-user-name))
@@ -816,6 +828,7 @@ first mark."
 
 (defun triton-run-ssh (&optional arg)
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (let* ((profile triton-local-profile)
          (instance (triton--current-instance))
          (cmdline (triton--run-ssh-build-arguments instance))
@@ -865,7 +878,19 @@ first mark."
 (defvar triton-pssh-command-history nil)
 
 (defun triton-run-pssh ()
+  "Run a command on all marked instances asynchronously.
+
+This command runs external pssh(1) program to do the job.
+If any of marked instances does not have a public IP address,
+the connections will be hopped through the Bastion server,
+specified in `triton-local-bastion-host-name'.  Note that the value of this variable is a Triton machine name, not the host name of the machine.
+
+If `triton-local-force-bastion' is non-nil, all connections to the
+remote machines will be hopped through the Bastion server.
+
+You may only run a single PSSH session per Emacs instance."
   (interactive)
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (let ((instances (triton--marked-instances))
         (default-user triton-local-user-name)
         (profile triton-local-profile)
@@ -918,7 +943,8 @@ first mark."
             ;; (shell-command (format "cat %s" hostfile))
             ))))))
 
-(defun triton-switch-to-triton-buffer ()
+(defun triton-pop-to-triton-buffer ()
+  "Pop to the related `triton-mode' buffer."
   (interactive)
   (triton triton-local-profile))
 
@@ -927,6 +953,7 @@ first mark."
 
 A prefix argument will cause just redraw the buffer."
   (interactive "P")
+  (assert (eq major-mode 'triton-mode) nil "Only works in triton-mode")
   (let ((buffer (get-buffer (format " *triton-%s*" triton-local-profile))))
     (when (null arg)
       (when (bufferp buffer)
@@ -936,10 +963,13 @@ A prefix argument will cause just redraw the buffer."
       (setq triton-local-instances nil))
     (triton--fill-buffer triton-local-profile)))
 
-(define-minor-mode triton-minor-mode "docstring" nil nil
+(define-minor-mode triton-minor-mode
+  "Minor mode for `triton-mode' related buffers" nil nil
   (let ((kmap (make-sparse-keymap)))
-    (define-key kmap [(control ?c) (control ?J)] 'triton-switch-to-triton-buffer)
-    (define-key kmap [(control ?x) (control ?J)] 'triton-switch-to-triton-buffer)
+    (define-key kmap [(control ?c) (control ?J)]
+      'triton-pop-to-triton-buffer)
+    (define-key kmap [(control ?x) (control ?J)]
+      'triton-pop-to-triton-buffer)
     kmap)
   (make-local-variable 'triton-local-profile))
 
@@ -989,12 +1019,17 @@ A prefix argument will cause just redraw the buffer."
      (2 'triton-pssh-failure-face)
      (3 'triton-pssh-failure-face))
     ("\\`\\([sS]tderr\\): *"
-     (1 'triton-pssh-failure-face))))
+     (1 'triton-pssh-failure-face)))
+  "Font lock keywords for `triton-pssh-mode'")
 
 (defun triton-pssh-beginning-of-defun ()
+  "Move point to the beginning of the output of each instance in
+`triton-pssh-mode'."
   (re-search-backward "^\\(\\[[0-9]+\\]\\) +[0-9:]* +\\(\\[[^]]*\\]\\).*$" nil t))
 
 (defun triton-pssh-end-of-defun ()
+  "Move point to the end of the output of each instances in
+`triton-pssh-mode'."
   (let ((base (point))
         pos)
     (if (setq pos (re-search-forward "^\\(\\[[0-9]+\\]\\) +[0-9:]* +\\(\\[[^]]*\\]\\).*$" nil t))
@@ -1007,7 +1042,7 @@ A prefix argument will cause just redraw the buffer."
       (goto-char (point-max)))))
 
 (define-derived-mode triton-pssh-mode fundamental-mode "TritonPSSH"
-  "docstring"
+  "Major mode for viewing PSSH output"
   (make-local-variable 'font-lock-keywords)
   (make-local-variable 'font-lock-defaults)
   (setq font-lock-keywords triton--pssh-font-lock-keywords)
@@ -1023,11 +1058,14 @@ A prefix argument will cause just redraw the buffer."
     (define-key map [?i] 'triton-sort-by-image)
     (define-key map [?u] 'triton-sort-by-updated)
     (define-key map [?p] 'triton-sort-by-package)
-    map))
+    map)
+  "Keymap for sorting Triton instances")
 
 
 (define-derived-mode triton-mode fundamental-mode "Triton"
-  "docstring"
+  "Major mode for Joyent Triton Compute
+
+See https://www.joyent.com/triton/compute."
   (make-local-variable 'triton-local-profile)
   (make-local-variable 'triton-local-networks)
   (make-local-variable 'triton-local-images)
@@ -1049,7 +1087,7 @@ A prefix argument will cause just redraw the buffer."
   (define-key triton-mode-map [?U] 'triton-unmark-all-marks)
   (define-key triton-mode-map [?t] 'triton-toggle-all-marks)
   (define-key triton-mode-map [?h] 'triton-run-shell)
-  (define-key triton-mode-map [?s] 'triton-run-ssh)
+  (define-key triton-mode-map [?S] 'triton-run-ssh)
   (define-key triton-mode-map [?P] 'triton-run-pssh)
   (define-key triton-mode-map [?g] 'triton-refresh-all)
   (define-key triton-mode-map [?s] triton-sort-map)
