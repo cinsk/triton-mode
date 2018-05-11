@@ -32,6 +32,14 @@
 (defvar triton-ssh-program "ssh" "Pathname of executable of SSH")
 (defvar triton-pssh-program "pssh" "Pathname of executable of pssh")
 
+(defvar triton-use-ssh-agent-forwarding t
+  "Whether to use a SSH agent for the SSH connections")
+(defvar triton-use-quiet-mode t
+  "Whether to suppress any warning message from SSH connections")
+(defvar triton-use-term-char-mode nil
+  "`triton-run-ssh' will use `term-char-mode' if non-nil.
+  Otherwise it will use `term-line-mode'.")
+
 (defstruct triton-network name id public description)
 (defstruct triton-image name id version os type default-user)
 (defstruct triton-instance name id package brand ips primaryip networks image updated mark)
@@ -811,6 +819,10 @@ first mark."
                   "StrictHostKeyChecking=no"
                   "-o"
                   "UserKnownHostsFile=/dev/null")
+            (and triton-use-ssh-agent-forwarding
+                 (list "-A"))
+            (and triton-use-quiet-mode
+                 (list "-q"))
             (unless (and (triton-instance-public-p host triton-local-profile) (not triton-local-force-bastion))
               (triton--run-ssh-build-proxy-command (triton-instance-primaryip bastion) bastion-user bastion-port))
             (list "-p"
@@ -829,7 +841,9 @@ first mark."
     (triton-log "triton-run-ssh: command-line: %S" cmdline)
     (with-current-buffer buffer
       (term-mode)
-      (term-char-mode)
+      (if triton-use-term-char-mode
+          (term-char-mode)
+        (term-line-mode))
       (triton-minor-mode 1)
       (goto-char (point-max))
       (setq triton-local-profile profile))
@@ -840,10 +854,12 @@ first mark."
 (defun triton--pssh-build-command (hostfile bastion)
   ;; pssh -v -O 'LogLevel=QUIET' -O 'ForwardAgent=yes' -O 'StrictHostKeyChecking=no' -O 'UserKnownHostsFile=/dev/null' -O 'ProxyCommand=ssh -q -p 22 root@165.225.136.229 nc %h %p' -l root -i -h
   (append (list triton-pssh-program)
-          (list "-O" "LogLevel=QUIET"
-                "-O" "ForwardAgent=yes"
-                "-O" "StrictHostKeyChecking=no"
+          (list "-O" "StrictHostKeyChecking=no"
                 "-O" "UserKnownHostsFile=/dev/null")
+          (and triton-use-ssh-agent-forwarding
+               (list "-O" "ForwardAgent=yes"))
+          (and triton-use-quiet-mode
+               (list "-O" "LogLevel=QUIET"))
           (list "-h" hostfile)
           (when bastion
             (list "-O"
