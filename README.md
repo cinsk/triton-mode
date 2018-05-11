@@ -86,7 +86,7 @@ All output is appended in *triton-pssh* buffer.  For example, here's the output 
          17:48pm  up 245 days 17:28,  0 users,  load average: 0.00, 0.00, 0.00
         [3] 10:48:11 [SUCCESS] root@192.168.128.72
          5:48PM  up 122 days,  7:08, 0 users, load averages: 0.24, 0.15, 0.12
-        
+        ^L
 
 Each run is delimited by `\f\n`, so that you can navigate using `C-x [` and `C-x ]`.  Per machine output is treated as a function, so that you can nagivated using `C-M-a` and `C-M-e`.
 
@@ -104,3 +104,5 @@ Here are some additional task(s) that need to be done.   Any help will be appric
 5. Remove dependency to Emacs `ssh` package.  /triton-mode/ only needs this package for the function, `ssh-parse-words`.
 6. Ability to inject data (probably in a kill ring) to each machine in PSSH.
 7. Update this README in a nice/proper English.
+8. Optimize a PSSH command interface if there are too many marked machines.
+
